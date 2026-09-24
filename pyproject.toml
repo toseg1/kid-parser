@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kid-parser"
+version = "0.1.0"
+description = "Regex-only PRIIPs KID PDF parser (no LLM, no API keys)"
+requires-python = ">=3.9"
+dependencies = [
+    "pypdf>=5.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+kid-parser = "kid_parser.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kid_parser*"]
