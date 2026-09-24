@@ -7,7 +7,7 @@ typed `KidDocument` (product info, costs, risk, performance scenarios, ...).
 ## Install
 
 ```bash
-pip install -e .
+pip install git+https://github.com/toseg1/kid-parser.git .
 ```
 
 ## Usage
