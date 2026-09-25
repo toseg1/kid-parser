@@ -159,3 +159,153 @@ def test_json_round_trip():
     kid = parse_kid(FIXTURES / "PRP_DE_en_IE00BL6K8D99_YES_2026-04-09.pdf")
     reloaded = KidDocument.from_json(kid.to_json())
     assert reloaded.to_dict() == kid.to_dict()
+
+
+# --- French-language KIDs --------------------------------------------------
+# One golden test per distinct French template (Crédit Mutuel AM OPCVM and
+# FIA, Robeco, FFG/Waystone, La Française, Eiffel IG), plus a sweep over
+# every fixture for the fields a portfolio tracker actually consumes.
+
+FR_FIXTURES = FIXTURES / "fr"
+
+
+def _fr(isin_and_date):
+    return parse_kid(FR_FIXTURES / f"KID_fr_{isin_and_date}.pdf")
+
+
+def _scenario(kid, name):
+    s = kid.scenarios[name]
+    return (s.one_year.value, s.one_year.return_pct, s.rhp.value, s.rhp.return_pct)
+
+
+def test_fr_cm_am_opcvm_human_care():
+    kid = _fr("FR0013041654_2026-03-02")
+
+    assert kid.language == "fr"
+    assert kid.isin == "FR0013041654"
+    assert kid.production_date == "2026-03-02"
+    assert kid.product_name == "CM-AM HUMAN CARE"  # soft hyphen "CM ­AM" repaired
+    assert kid.share_class == "Part RC"
+    assert kid.issuer == "CREDIT MUTUEL ASSET MANAGEMENT"
+    assert kid.custodian == "BANQUE FEDERATIVE DU CREDIT MUTUEL"
+    assert kid.type == "OPCVM sous forme de fonds commun de placement (FCP)"
+    assert kid.is_ucits is True
+    assert kid.distribution_policy == "Accumulating"
+    assert kid.currency == "EUR"
+    assert kid.sri == 4
+    assert kid.rhp_years == 5
+    assert kid.sfdr_article is None  # not stated in this KID
+    assert (kid.example_investment_amount.value, kid.example_investment_amount.currency) == (10000.0, "EUR")
+
+    # "­79,7 %": soft-hyphen minus, comma decimal, space-grouped "2 030 €"
+    assert _scenario(kid, "stress") == (2030.0, -79.7, 2270.0, -25.7)
+    assert _scenario(kid, "unfavourable") == (7050.0, -29.5, 7390.0, -5.9)
+    assert _scenario(kid, "moderate") == (9940.0, -0.6, 10070.0, 1.0)
+    assert _scenario(kid, "favourable") == (13520.0, 35.2, 13610.0, 6.4)
+
+    cost = kid.cost_section
+    assert (cost.total_cost_1y.value, cost.total_cost_rhp.value) == (411.0, 1336.0)
+    assert (cost.cost_impact_pct_1y, cost.cost_impact_pct_rhp) == (4.2, 2.6)
+    b = cost.breakdown
+    assert (b.entry_costs.pct, b.entry_costs.amount.value) == (2.0, 200.0)
+    assert b.exit_costs.amount.value == 0.0
+    assert (b.management_fees.pct, b.management_fees.amount.value) == (1.9, 186.0)
+    assert (b.transaction_costs.pct, b.transaction_costs.amount.value) == (0.31, 25.0)
+    assert cost.performance_fees_yn is False
+
+
+def test_fr_cm_am_fia_is_not_ucits():
+    kid = _fr("FR0014001TX4_2026-09-01")
+
+    assert kid.product_name == "CM-AM SOLIDAIRE TEMPERE ISR"
+    assert kid.is_ucits is False  # "Ce FIA", FIVG
+    assert kid.sri == 2
+    assert (kid.cost_section.breakdown.management_fees.pct, kid.cost_section.breakdown.transaction_costs.pct) == (0.78, 0.03)
+
+
+def test_fr_robeco_english_style_numbers():
+    kid = _fr("LU2145461757_2026-07-16")
+
+    assert kid.production_date == "2026-07-16"  # "Date de publication 16/7/2026"
+    assert kid.product_name == "Robeco Smart Energy D EUR"
+    assert kid.issuer == "Robeco Institutional Asset Management B.V"
+    assert kid.custodian == "J.P. Morgan SE"
+    assert kid.sfdr_article == "Article 9"
+    assert kid.sri == 5
+    assert kid.rhp_years == 5  # "5 Ans"
+    # "3,100 EUR" is three thousand one hundred, "-69.0%" a dot decimal
+    assert _scenario(kid, "stress") == (3100.0, -69.0, 2370.0, -25.0)
+    cost = kid.cost_section
+    assert (cost.example_cost_amount.value, cost.example_cost_amount.currency) == (10000.0, "EUR")
+    assert (cost.total_cost_1y.value, cost.total_cost_rhp.value) == (692.0, 3111.0)
+    assert (cost.cost_impact_pct_1y, cost.cost_impact_pct_rhp) == (6.9, 3.4)
+    assert (cost.breakdown.entry_costs.pct, cost.breakdown.entry_costs.amount.value) == (5.0, 500.0)
+    assert cost.breakdown.management_fees.pct == 1.72
+    assert cost.breakdown.transaction_costs.pct == 0.2
+
+
+def test_fr_ffg_three_holding_periods():
+    kid = _fr("LU2612532759_2026-07-11")
+
+    assert kid.product_name == "FFG - BLI Global Impact Equities"
+    assert kid.share_class == "R Acc"
+    assert kid.issuer == "Waystone Management Company (Lux) S.A"
+    assert kid.custodian == "Banque de Luxembourg"
+    assert kid.rhp_years == 10
+    # 1 / 5 / 10-year columns: rhp is the last one, "5.410 EUR" dot-grouped
+    assert _scenario(kid, "stress") == (5410.0, -45.9, 3610.0, -9.7)
+    cost = kid.cost_section
+    assert (cost.total_cost_1y.value, cost.total_cost_rhp.value) == (511.0, 4554.0)
+    assert (cost.cost_impact_pct_1y, cost.cost_impact_pct_rhp) == (5.1, 2.4)
+    assert (cost.breakdown.management_fees.pct, cost.breakdown.transaction_costs.pct) == (1.8, 0.3)
+
+
+def test_fr_la_francaise_alternate_labels():
+    kid = _fr("LU1744646933_2025-08-06")
+
+    assert kid.sri == 4  # "catégorisé ce produit au niveau 4 sur 7"
+    assert kid.rhp_years == 5
+    assert kid.sfdr_article == "Article 9"
+    assert kid.index == "MSCI All Country World Index"
+    # "Scénario de tensions" row label, "Coût total", "Frais de transaction"
+    assert _scenario(kid, "stress") == (4660.0, -53.4, 3530.0, -18.8)
+    assert _scenario(kid, "favourable") == (14510.0, 45.1, 17050.0, 11.3)
+    cost = kid.cost_section
+    assert (cost.total_cost_1y.value, cost.total_cost_rhp.value) == (544.0, 2178.0)
+    assert (cost.breakdown.management_fees.pct, cost.breakdown.transaction_costs.pct) == (2.03, 0.49)
+    assert cost.performance_fees_yn is False
+
+
+def test_fr_eiffel_eltif_with_performance_fee():
+    kid = _fr("FR001400OLI0_2026-06-05")
+
+    assert (kid.product_name, kid.share_class) == ("EIFFEL INFRASTRUCTURES VERTES", "Part A")
+    assert kid.issuer == "EIFFEL INVESTMENT GROUP"
+    assert kid.custodian == "Société Générale"
+    assert kid.is_ucits is False  # ELTIF / FCPR
+    assert kid.sri == 3
+    # amounts and returns interleaved per column ("8 586 EUR -14,14 % 8 117 EUR -4,09 %")
+    assert _scenario(kid, "moderate") == (10767.0, 7.67, 14712.0, 8.03)
+    cost = kid.cost_section
+    assert (cost.cost_impact_pct_1y, cost.cost_impact_pct_rhp) == (2.02, 2.18)
+    assert cost.breakdown.performance_fees.pct == 15.0
+    assert cost.performance_fees_yn is True
+
+
+def test_fr_every_fixture_has_the_core_fields():
+    kids = parse_kids(FR_FIXTURES)
+    assert len(kids) == 11
+    for kid in kids:
+        assert kid.language == "fr", kid.source_file
+        for field in ("isin", "product_name", "issuer", "production_date", "sri", "rhp_years", "currency", "distribution_policy"):
+            assert getattr(kid, field) is not None, (kid.source_file, field)
+        assert kid.cost_section.total_cost_1y is not None, kid.source_file
+        assert kid.cost_section.breakdown.management_fees.pct is not None, kid.source_file
+        assert all(kid.scenarios[name] is not None for name in ("stress", "unfavourable", "moderate", "favourable")), kid.source_file
+
+
+def test_english_kids_carry_language_and_production_date():
+    kid = parse_kid(FIXTURES / "PRP_DE_en_IE00B4L5Y983_YES_2026-09-03.pdf")
+    assert kid.language == "en"
+    assert kid.production_date == "2026-09-03"
+    assert kid.is_ucits is True

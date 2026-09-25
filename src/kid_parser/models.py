@@ -188,6 +188,9 @@ class KidDocument:
     scenario_time_frame: ScenarioTimeFrame
     scenarios: dict  # name -> Optional[Scenario]
     cost_section: CostSection
+    language: Optional[str] = None  # "en" | "fr"
+    production_date: Optional[str] = None  # ISO date the KID was produced
+    is_ucits: Optional[bool] = None
 
     def to_dict(self):
         return {
@@ -219,6 +222,9 @@ class KidDocument:
                 for name, scenario in self.scenarios.items()
             },
             "cost_section": self.cost_section.to_dict(),
+            "language": self.language,
+            "production_date": self.production_date,
+            "is_ucits": self.is_ucits,
         }
 
     def to_json(self, indent=2):
@@ -253,12 +259,18 @@ class KidDocument:
                 for name, value in data.get("scenarios", {}).items()
             },
             cost_section=CostSection.from_dict(data["cost_section"]),
+            language=data.get("language"),
+            production_date=data.get("production_date"),
+            is_ucits=data.get("is_ucits"),
         )
 
     @classmethod
     def from_json(cls, source):
         """Load from a JSON string, or from a file when `source` is a path."""
-        if isinstance(source, Path) or (isinstance(source, str) and Path(source).is_file()):
+        # A JSON document always starts with "{"; only anything else is
+        # treated as a path (Path.is_file() on a long JSON string raises
+        # "File name too long" on macOS instead of returning False).
+        if isinstance(source, Path) or (isinstance(source, str) and not source.lstrip().startswith("{")):
             text = Path(source).read_text(encoding="utf-8")
         else:
             text = source

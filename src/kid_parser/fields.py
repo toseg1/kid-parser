@@ -4,6 +4,7 @@ Regexes are anchored on PRIIPs-mandated section headings (Type:, Term:,
 Recommended holding period, Composition of Costs, ...), which are consistent
 across issuers. Verified against 4 templates (iShares/BlackRock x2, Amundi,
 L&G/LGIM) -- a new issuer template may need additional fallback patterns.
+French-language KIDs have their own extractors in kid_parser.fields_fr.
 
 Every function here takes the already-normalized ("flat") document text (see
 kid_parser.text.normalize_flat) and returns a plain value / tuple / dict --
@@ -43,6 +44,29 @@ COST_CATEGORIES = [
 def parse_filename(stem):
     m = FILENAME_RE.search(stem)
     return m.groupdict() if m else {}
+
+
+MONTHS = {
+    m: i for i, m in enumerate(
+        ["january", "february", "march", "april", "may", "june", "july",
+         "august", "september", "october", "november", "december"], start=1)
+}
+
+
+def extract_production_date(flat, filename_date=None):
+    m = re.search(r"\bdated (\d{1,2}) ([A-Za-z]+) (\d{4})", flat)
+    if m and m.group(2).lower() in MONTHS:
+        return f"{m.group(3)}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}"
+    return filename_date
+
+
+def extract_is_ucits(flat):
+    head = flat[:4000]
+    if re.search(r"\bUCITS\b|Undertaking for Collective Investment in Transferable Securities", head):
+        return True
+    if re.search(r"\bAIF\b|Alternative Investment Fund", head):
+        return False
+    return None
 
 
 def extract_isin(flat, filename_isin):
