@@ -7,7 +7,7 @@ typed `KidDocument` (product info, costs, risk, performance scenarios, ...).
 ## Install
 
 ```bash
-pip install git+https://github.com/toseg1/kid-parser.git .
+pip install "kid-parser @ git+https://github.com/toseg1/kid-parser.git@v0.2.0"
 ```
 
 ## Usage
@@ -19,6 +19,8 @@ kid = parse_kid("IE00BL6K8D99.pdf")   # -> KidDocument, no disk writes
 kid.isin                              # "IE00BL6K8D99"
 kid.share_class                       # "EUR Accu"
 kid.cost_section.total_cost_1y.value  # 18.0
+kid.language, kid.production_date     # ("en", "2026-04-09")
+kid.is_ucits                          # True
 
 kids = parse_kids("path/to/kids_dir") # -> list[KidDocument]
 
@@ -45,6 +47,21 @@ far against real KIDs from:
 - **BlackRock / iShares**
 - **Amundi**
 - **L&G / LGIM**
+
+French-language KIDs ("Document d'informations clés") are detected
+automatically and parsed with their own pattern set
+(`src/kid_parser/fields_fr.py`), tested against:
+
+- **Crédit Mutuel Asset Management** (OPCVM and FIA)
+- **Robeco**
+- **FFG / Waystone**
+- **La Française**
+- **Eiffel Investment Group** (ELTIF)
+
+French issuers mix three number formats ("10 000 €", "10.000 EUR",
+"10,000 EUR"); amounts with exactly three digits after a separator are read
+as thousands, everything else as decimals. Scenario keys stay in English
+(`stress`, `unfavourable`, `moderate`, `favourable`) whatever the language.
 
 ## Contributing
 

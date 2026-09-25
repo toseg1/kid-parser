@@ -8,6 +8,10 @@ NORMALIZE_MAP = {
     "“": '"', "”": '"', "‘": "'", "’": "'",
     "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff",
     "–": "-", "—": "-",
+    # French KIDs (Crédit Mutuel AM) render every hyphen and minus sign as
+    # a soft hyphen, usually padded with spaces ("CM ­AM", "­79,7 %").
+    "\u00ad": "-",
+    "\u00a0": " ", "\u202f": " ",
 }
 
 CURRENCY_NAME_TO_CODE = {
@@ -41,7 +45,16 @@ def normalize_flat(text):
     # "S.A." from being split into "S. A.".
     text = re.sub(r"(?<=[a-zA-Z]{2})([.,;:])(?=[A-Z])", r"\1 ", text)
     text = re.sub(r"\s+", " ", text).strip()
+    # "CM -AM" (a soft hyphen padded on one side) -> "CM-AM"; only between
+    # letters, so a spaced minus sign before a number is left alone.
+    text = re.sub(r"(?<=[A-Za-z]) -(?=[A-Za-z])", "-", text)
     return text
+
+
+def detect_language(flat):
+    if re.search(r"document d.informations cl[ée]s", flat, re.I):
+        return "fr"
+    return "en"
 
 
 def clean(text):
